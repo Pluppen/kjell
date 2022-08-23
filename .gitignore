@@ -29,6 +29,7 @@
 *.dylib
 
 # Executables
+kjell
 *.exe
 *.out
 *.app
