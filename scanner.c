@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include "shell.h"
 #include "scanner.h"
 #include "source.h"
@@ -99,6 +100,8 @@ struct token_s *tokenize(struct source_s *src)
     tok_buf[0]       = '\0';
 
     char nc = next_char(src);
+    char nc2;
+    int i;
 
     if(nc == ERRCHAR || nc == EOF)
     {
@@ -109,6 +112,54 @@ struct token_s *tokenize(struct source_s *src)
     {
         switch(nc)
         {
+            case '"':
+            case '\'':
+            case '`':
+                add_to_buf(nc);
+                i = find_closing_quote(src->buffer+src->curpos);
+
+                if(!i) {
+                    src->curpos = src->bufsize;
+                    fprintf(stderr, "error: missing closing quote '%c'\n", nc);
+                    return &eof_token;
+                }
+
+                while(i--) {
+                    add_to_buf(next_char(src));
+                }
+                break;
+            case '\\':
+                  nc2 = next_char(src);
+
+                  if(nc2 == '\n') {
+                      break;
+                  }
+
+                  add_to_buf(nc);
+
+                  if(nc2 > 0) {
+                      add_to_buf(nc2);
+                  }
+                  break;
+            case '$':
+                  add_to_buf(nc);
+                  nc = peek_char(src);
+
+                  if(nc == '{' || nc == '(') {
+                      i = find_closing_brace(src->buffer+src->curpos+1);
+                      if(!i) {
+                          src->curpos = src->bufsize;
+                          fprintf(stderr, "error: missing closing brace '%c'\n", nc);
+                          return &eof_token;
+                      }
+
+                      while(i--) {
+                          add_to_buf(next_char(src));
+                      }
+                  } else if(isalnum(nc) || nc == '*' || nc == '@' || nc == '#' || nc == '$') {
+                      add_to_buf(next_char(src));
+                  }
+                  break;
             case ' ':
             case '\t':
                 if(tok_bufindex > 0)
@@ -118,12 +169,9 @@ struct token_s *tokenize(struct source_s *src)
                 break;
                 
             case '\n':
-                if(tok_bufindex > 0)
-                {
+                if(tok_bufindex > 0) {
                     unget_char(src);
-                }
-                else
-                {
+                } else {
                     add_to_buf(nc);
                 }
                 endloop = 1;

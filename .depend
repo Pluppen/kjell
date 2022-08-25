@@ -1,0 +1,18 @@
+prompt.o: prompt.c shell.h source.h symtable/symtab.h symtable/../node.h
+node.o: node.c shell.h source.h node.h parser.h scanner.h
+parser.o: parser.c shell.h source.h parser.h scanner.h node.h
+scanner.o: scanner.c shell.h source.h scanner.h
+source.o: source.c shell.h source.h
+executor.o: executor.c shell.h source.h node.h executor.h
+initsh.o: initsh.c shell.h source.h symtable/symtab.h symtable/../node.h
+pattern.o: pattern.c shell.h source.h
+strings.o: strings.c shell.h source.h
+wordexp.o: wordexp.c shell.h source.h symtable/symtab.h \
+ symtable/../node.h executor.h node.h
+shunt.o: shunt.c shell.h source.h symtable/symtab.h symtable/../node.h
+builtins.o: builtins/builtins.c builtins/../shell.h builtins/../source.h
+dump.o: builtins/dump.c builtins/../shell.h builtins/../source.h \
+ builtins/../symtable/symtab.h builtins/../symtable/../node.h
+symtab.o: symtable/symtab.c symtable/../shell.h symtable/../source.h \
+ symtable/../node.h symtable/../parser.h symtable/../scanner.h \
+ symtable/symtab.h

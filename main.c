@@ -1,77 +1,120 @@
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include "source.h"
+#include "parser.h"
+#include "executor.h"
 
-#include "hashtable.c"
+#include "shell.h"
 
-void print_options() {
-    printf("1. Add\n2. Delete\n3. Search\n4. Quit\n");
-}
+#define CMD_BUFFER_SIZE 1024
+char* read_cmd() {
+    char buffer[CMD_BUFFER_SIZE];
+    char *ptr = NULL;
+    char ptrlen = 0;
 
-void add(ht_hash_table* ht) {
-    char key[256];
-    char value[256];
+    while(fgets(buffer, CMD_BUFFER_SIZE, stdin)) {
+        int buflen = strlen(buffer);
 
-    printf("Specify key: ");
-    fgets(key, sizeof(key), stdin);
-    key[strcspn(key, "\n")] = 0;
-
-    printf("Specify value: ");
-    fgets(value, sizeof(value), stdin);
-    value[strcspn(value, "\n")] = 0;
-
-    ht_insert(ht, key, value);
-    printf("Added key '%s' with value '%s' into hashtable.\n", key, value);
-}
-
-void delete(ht_hash_table* ht) {
-    char key[256];
-
-    printf("Specify key: ");
-    fgets(key, sizeof(key), stdin);
-    key[strcspn(key, "\n")] = 0;
-
-    ht_delete(ht, key);
-    printf("Deleted key '%s'.\n", key);
-}
-
-void search(ht_hash_table* ht) {
-    char key[256];
-
-    printf("Specify key: ");
-    fgets(key, sizeof(key), stdin);
-    key[strcspn(key, "\n")] = 0;
-
-    char* value = ht_search(ht, key);
-    printf("The value for key '%s' is '%s'\n", key, value);
-}
-
-int main(void) {
-    ht_hash_table* ht = ht_new();
-
-    char line[256];
-    
-    print_options();
-    printf("Select option: ");
-    while(fgets(line, sizeof(line), stdin)) {
-        if(*line == '1') {
-            printf("Add this shit\n");
-            add(ht);
-        } else if(*line == '2') {
-            printf("Remove this shit\n");
-            delete(ht);
-        } else if(*line == '3') {
-            printf("Search this shit\n");
-            search(ht);
-        }  else if(*line == '4') {
-            printf("Quitting\n");
-            exit(0);
+        if(!ptr) {
+            ptr = malloc(buflen +1);
         } else {
-            printf("Invalid input!\n");
-            print_options();
+            char *ptr2 = realloc(ptr, ptrlen+buflen+1);
+
+            if(ptr2) {
+                ptr = ptr2;
+            } else {
+                free(ptr);
+                ptr = NULL;
+            }
         }
 
-        print_options();
-        printf("Select option: ");
+        if(!ptr) {
+            print_error("kjell: allocation error\n");
+            return NULL;
+        }
+
+        strcpy(ptr+ptrlen, buffer);
+
+        if(buffer[buflen-1] == '\n'){
+            if(buflen == 1 || buffer[buflen-2] != '\\') {
+                return ptr;
+            }
+
+            ptr[ptrlen+buflen-2] = '\0';
+            buflen -= 2;
+            print_prompt2();
+        }
+
+        ptrlen += buflen;
     }
 
-    ht_del_hash_table(ht);
+    return ptr;
+}
+
+int parse_and_execute(struct source_s *src) {
+    skip_white_spaces(src);
+
+    struct token_s *tok = tokenize(src);
+
+    if(tok == &eof_token) {
+        return 0;
+    }
+
+    while(tok && tok != &eof_token) {
+        struct node_s *cmd = parse_simple_command(tok);
+
+        if(!cmd) {
+            break;
+        }
+
+        do_simple_command(cmd);
+        free_node_tree(cmd);
+        tok = tokenize(src);
+    }
+
+    return 1;
+}
+
+void kjell_loop() {
+    char *cmd;
+
+    do {
+        print_prompt1();
+
+        cmd = read_cmd();
+
+        if(!cmd) {
+            exit(EXIT_FAILURE);
+        }
+
+        if(cmd[0] == '\0' || strcmp(cmd, "\n") == 0) {
+            free(cmd);
+            continue;
+        }
+
+        if(strcmp(cmd, "exit\n") == 0) {
+            free(cmd);
+            break;
+        }
+
+        struct source_s src;
+        src.buffer = cmd;
+        src.bufsize = strlen(cmd);
+        src.curpos = INIT_SRC_POS;
+        parse_and_execute(&src);
+
+        free(cmd);
+    } while(1);
+}
+
+int main() {
+
+    initsh();
+
+    kjell_loop();
+
+    return EXIT_SUCCESS;
 }
